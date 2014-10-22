@@ -1,9 +1,9 @@
 # react-rails [![Build Status](https://travis-ci.org/reactjs/react-rails.png)](https://travis-ci.org/reactjs/react-rails) [![Code Climate](https://codeclimate.com/github/reactjs/react-rails.png)](https://codeclimate.com/github/reactjs/react-rails)
 
-**react-rails version discaimer**
+**react-rails version disclaimer**
 *This README is for `1.x` branch which is still in development. Please switch to latest `0.x` branch for stable version.*
 
-*Additionaly: `0.x` branch directly follows React versions, `1.x` will not do so.*
+*Additionally: `0.x` branch directly follows React versions, `1.x` will not do so.*
 
 react-rails is a ruby gem which makes it easier to use [React](http://facebook.github.io/react/) and [JSX](http://facebook.github.io/react/docs/jsx-in-depth.html) in your Ruby on Rails application.
 
@@ -23,8 +23,16 @@ As with all gem dependencies, we strongly recommend adding `react-rails` to your
 # If you missed a warning at the top of this README - this is still in development
 # which means this version is not pushed to rubygems.org
 
-gem 'react-rails', '~> 1.0.0'
+gem 'react-rails', '~> 1.0.0.pre', github: 'reactjs/react-rails'
 ```
+
+Next, run the installation script.
+
+```bash
+rails g react:install
+```
+
+This will require `react.js`, `react_ujs.js`, and a `components.js` manifest file in application.js, and create a directory named `app/assets/javascripts/components` for you to store React components in.
 
 ## Usage
 
@@ -35,7 +43,7 @@ In order to use React client-side in your application, you must make sure the br
 You can `require` it in your manifest:
 
 ```js
-// app/assets/application.js
+// app/assets/javascripts/application.js
 
 //= require react
 ```
@@ -69,7 +77,7 @@ Component = React.createClass
 
 ```erb
 <!-- react_ujs will execute `React.renderComponent(HelloMessage({name:"Bob"}), element)` -->
-<div data-react-class="HelloMessage" data-react-props="<%= {:name => 'Bob'}.to_json %>" />
+<div data-react-class="HelloMessage" data-react-props="<%= {name: 'Bob'}.to_json %>" />
 ```
 
 `react_ujs` will also scan DOM elements and call `React.unmountComponentAtNode` on page unload. If you want to disable this behavior, remove `data-react-class` attribute in `componentDidMount`.
@@ -77,7 +85,7 @@ Component = React.createClass
 To use `react_ujs`, simply `require` it after `react` (and after `turbolinks` if [Turbolinks](https://github.com/rails/turbolinks) is used):
 
 ```js
-// app/assets/application.js
+// app/assets/javascripts/application.js
 
 //= require turbolinks
 //= require react
@@ -89,23 +97,78 @@ To use `react_ujs`, simply `require` it after `react` (and after `turbolinks` if
 There is a view helper method `react_component`. It is designed to work with `react_ujs` and takes a React class name, properties, and HTML options as arguments:
 
 ```ruby
-react_component('HelloMessage', :name => 'John')
+react_component('HelloMessage', name: 'John')
 # <div data-react-class="HelloMessage" data-react-props="{&quot;name&quot;:&quot;John&quot;}"></div>
 ```
 
 By default, a `<div>` element is used. Other tag and HTML attributes can be specified:
 
 ```ruby
-react_component('HelloMessage', {:name => 'John'}, :span)
+react_component('HelloMessage', {name: 'John'}, :span)
 # <span data-...></span>
 
-react_component('HelloMessage', {:name => 'John'}, {:id => 'hello', :class => 'foo', :tag => :span})
+react_component('HelloMessage', {name: 'John'}, {id: 'hello', class: 'foo', tag: :span})
 # <span class="foo" id="hello" data-...></span>
+```
+
+#### With JSON and Jbuilder
+
+You can pass prepared JSON directly to the helper, as well.
+
+```ruby
+react_component('HelloMessage', {name: 'John'}.to_json)
+# <div data-react-class="HelloMessage" data-react-props="{&quot;name&quot;:&quot;John&quot;}"></div>
+```
+
+This is especially helpful if you are already using a tool like Jbuilder in your project.
+
+```ruby
+# messages/show.json.jbuilder
+json.name name
+```
+
+```ruby
+react_component('HelloMessage', render(template: 'messages/show.json.jbuilder', locals: {name: 'John'}))
+# <div data-react-class="HelloMessage" data-react-props="{&quot;name&quot;:&quot;John&quot;}"></div>
+```
+
+##### Important Note
+
+By default, the scaffolded Rails index jbuilder templates do not include a root-node. An example scaffolded index.json.jbuilder looks like this:
+
+```ruby
+json.array!(@messages) do |message|
+  json.extract! message, :id, :name
+  json.url message_url(message, format: :json)
+end
+```
+
+which generates JSON like this:
+
+```json
+[{"id":1,"name":"hello","url":"http://localhost:3000/messages/1.json"},{"id":2,"name":"hello","url":"http://localhost:3000/messages/2.json"},{"id":3,"name":"hello","url":"http://localhost:3000/messages/3.json"}]
+```
+
+This is not suitable for ReactJS props, which is expected to be a key-value object. You will need to wrap your index.json.jbuilder node with a root node, like so:
+
+```ruby
+json.messages do |json|
+  json.array!(@messages) do |message|
+    json.extract! message, :id, :name
+    json.url message_url(message, format: :json)
+  end
+end
+```
+
+Which will generate:
+
+```json
+{"messages":[{"id":1,"name":"hello","url":"http://localhost:3000/messages/1.json"},{"id":2,"name":"hello","url":"http://localhost:3000/messages/2.json"},{"id":3,"name":"hello","url":"http://localhost:3000/messages/3.json"}]}
 ```
 
 ### Server Rendering
 
-React components can also use the same ExecJS mechanisims in Sprockets to execute JavaScript code on the server, and render React components to HTML to be delivered to the browser, and then the `react_ujs` script will cause the component to be mounted. In this way, users get fast initial page loads and search-engine-friendly pages.
+React components can also use the same ExecJS mechanisms in Sprockets to execute JavaScript code on the server, and render React components to HTML to be delivered to the browser, and then the `react_ujs` script will cause the component to be mounted. In this way, users get fast initial page loads and search-engine-friendly pages.
 
 #### ExecJS
 
@@ -118,14 +181,14 @@ gem "therubyrhino", :platforms => :jruby
 
 #### components.js
 
-In order for us to render your React components, we need to be able to find them and load them into the JS VM. By convention, we look for a `assets/components.js` file through the asset pipeline, and load that. For example:
+In order for us to render your React components, we need to be able to find them and load them into the JS VM. By convention, we look for a `assets/javascripts/components.js` file through the asset pipeline, and load that. For example:
 
 ```sass
 // app/assets/javascripts/components.js
 //= require_tree ./components
 ```
 
-This will bring in all files located in the `app/assets/javascripts/components` directory.  You can organize your code however you like, as long as a request for `/assets/components.js` brings in a concatenated file containing all of your React components, and each one has to be available in the global scope (either `window` or `global` can be used). For `.js.jsx` files this is not a problem, but if you are using `.js.jsx.coffee` files then the wrapper function needs to be taken into account:
+This will bring in all files located in the `app/assets/javascripts/components` directory.  You can organize your code however you like, as long as a request for `/assets/javascripts/components.js` brings in a concatenated file containing all of your React components, and each one has to be available in the global scope (either `window` or `global` can be used). For `.js.jsx` files this is not a problem, but if you are using `.js.jsx.coffee` files then the wrapper function needs to be taken into account:
 
 ```coffee
 ###* @jsx React.DOM ###
@@ -139,10 +202,10 @@ window.Component = Component
 
 #### View Helper
 
-To take advantage of server rendering, use the same view helper `react_component`, and pass in `:prerender => true` in the `options` hash.
+To take advantage of server rendering, use the same view helper `react_component`, and pass in `prerender: true` in the `options` hash.
 
 ```erb
-react_component('HelloMessage', {:name => 'John'}, {:prerender => true})
+react_component('HelloMessage', {name: 'John'}, {prerender: true})
 ```
 This will return the fully rendered component markup, and as long as you have included the `react_ujs` script in your page, then the component will also be instantiated and mounted on the client.
 
