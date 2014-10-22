@@ -19,9 +19,16 @@ module React
         app.config.watchable_files.concat Dir["#{app.root}/app/assets/javascripts/**/*.jsx*"]
       end
 
+      # Include the react-rails view helper lazily
+      initializer "react_rails.setup_view_helpers" do
+        ActiveSupport.on_load(:action_view) do
+          include ::React::Rails::ViewHelper
+        end
+      end
+
       # run after all initializers to allow sprockets to pick up react.js and
       # jsxtransformer.js from end-user to override ours if needed
-      initializer "react_rails.setup_vendor", :after => "sprockets.environment" do |app|
+      initializer "react_rails.setup_vendor", :after => "sprockets.environment", group: :all do |app|
         # Mimic behavior of ember-rails...
         # We want to include different files in dev/prod. The unminified builds
         # contain console logging for invariants and logging to help catch
@@ -32,8 +39,8 @@ module React
         # We'll also always copy of JSXTransformer.js
         tmp_path = app.root.join('tmp/react-rails')
         filename = 'react' +
-                   (app.config.react.addons ? '-with-addons' : '') +
-                   (app.config.react.variant == :production ? '.min.js' : '.js')
+            (app.config.react.addons ? '-with-addons' : '') +
+            (app.config.react.variant == :production ? '.min.js' : '.js')
         FileUtils.mkdir_p(tmp_path)
         FileUtils.cp(::React::Source.bundled_path_for(filename),
                      tmp_path.join('react.js'))
@@ -56,14 +63,16 @@ module React
       config.after_initialize do |app|
         # Server Rendering
         # Concat component_filenames together for server rendering
-        app.config.react.components_js = app.config.react.component_filenames.map do |filename|
-          app.assets[filename].to_s
-        end.join(";")
+        app.config.react.components_js = lambda {
+          app.config.react.component_filenames.map do |filename|
+            app.assets[filename].to_s
+          end.join(";")
+        }
 
         do_setup = lambda do
           cfg = app.config.react
-          React::Renderer.setup!( cfg.react_js.call, cfg.components_js,
-                                {:size => cfg.size, :timeout => cfg.timeout})
+          React::Renderer.setup!( cfg.react_js, cfg.components_js,
+                                  {:size => cfg.size, :timeout => cfg.timeout})
         end
 
         do_setup.call
